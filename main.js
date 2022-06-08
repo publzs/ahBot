@@ -1,15 +1,15 @@
 const axios = require('axios')
 
-//botToken
+//Bot Token
 const Token = ''
 
-//yourId
+//Your Id
 const AdministratorId = ''
 
-//抓取的openid
+//openid
 const openid = ''
 
-//代理host
+//代理host 查询至cloudnproxy.baidu.com
 let ips = [
     '180.97.104.168',
     '180.97.93.202',
@@ -23,7 +23,7 @@ let ips = [
     '157.0.148.53'
 ]
 
-const sendMessage = (text,log) => {
+const sendMessage = (text, log) => {
     axios.get(`https://api.telegram.org/bot${Token}/sendMessage`, {
         params: {
             'chat_id': AdministratorId,
@@ -37,7 +37,7 @@ const sendMessage = (text,log) => {
 const tryIp = async (ip) => {
     let now = new Date()
     let year = now.getFullYear().toString()
-    let mouth = (now.getMonth() + 1).toString().padStart(2,'0')
+    let mouth = (now.getMonth() + 1).toString().padStart(2, '0')
 
     let date = `${year}${mouth}`
     let res
@@ -52,7 +52,7 @@ const tryIp = async (ip) => {
             'Content-Type': 'application/x-www-form-urlencoded'
         },
         data: `openid=${openid}&dateTime=${date}`,
-        timeout: 6000,
+        timeout: 5000,
         proxy: {
             protocol: 'http',
             host: ip,
@@ -63,20 +63,12 @@ const tryIp = async (ip) => {
     try {
         res = await axios(config)
     } catch {
-        res = 'err'
+        return Promise.reject('err')
     }
-
-    return new Promise(((resolve, reject) => {
-        if (res === 'err') {
-            reject('请求失败')
-        } else {
-            if (res?.data?.object) {
-                resolve([res.data.object, ip])
-            } else {
-                reject('请求成功,但数据出错')
-            }
-        }
-    }));
+    if (res?.data?.object) {
+        return [res.data.object, ip]
+    }
+    return Promise.reject('err')
 }
 
 const getInfo = async () => {
@@ -84,7 +76,7 @@ const getInfo = async () => {
     try {
         res = await Promise.any(ips.map(value => tryIp(value)))
     } catch {
-        res = 'err'
+        return Promise.reject('err')
     }
     return res
 }
@@ -105,7 +97,7 @@ const dxllInfo = (dxll) => {
     return (dxll[0]['RATABLE_USED'] / 1024).toFixed(2) + 'G'
 }
 
-const main = (body) => {
+const main = async (body) => {
     if (!(body?.['message']?.['text'])) {
         return;
     }
@@ -113,17 +105,22 @@ const main = (body) => {
     if (message['chat']['id'] !== AdministratorId) return;
 
     if (message['text'] === '/start') {
-        getInfo().then(res => {
-            if (res === 'err') {
-                sendMessage('err','errrrr')
-                return;
-            }
-            let {ptll, dxll} = res[0]
-            console.log(res[1])
-            let ptStr = ptllInfo(ptll)
-            let dxStr = dxllInfo(dxll)
-            sendMessage(`➤➤ ${ptStr} -- ${dxStr}`,`ip>> ${res[1]}`)
-        })
+        let res
+        try {
+            res = await getInfo()
+        } catch {
+            sendMessage('err', 'all err')
+        }
+        let {ptll, dxll} = res[0]
+        let ptllStr = ptllInfo(ptll)
+        let dxStr = dxllInfo(dxll)
+        sendMessage(`➤➤ ${ptllStr} -- ${dxStr}`, `ip>> ${res[1]}`)
+        return;
+    }
+
+    if (message['text'] === 'hello') {
+        //isAlive
+        sendMessage('Hello!')
     }
 }
 module.exports = main;
